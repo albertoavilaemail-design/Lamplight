@@ -1,10 +1,9 @@
-// Paste your Firebase web app config here (Firebase console → Project settings → Your apps → Web app → SDK setup and configuration → Config).
-// These values are safe to publish: your data is protected by the Firestore security rules, not by keeping this secret.
+// Lamplight Firebase settings. Safe to publish: the Firestore security rules protect people's data.
 window.FIREBASE_CONFIG = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_PROJECT_ID.appspot.com",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID"
+  apiKey: "AIzaSyCWwrJ2zwzCJ1t7tKOIfSGLapbts4II2_4",
+  authDomain: "lamplight-31210.firebaseapp.com",
+  projectId: "lamplight-31210",
+  storageBucket: "lamplight-31210.firebasestorage.app",
+  messagingSenderId: "1025791023292",
+  appId: "1:1025791023292:web:582f1e0a2ae71caea4d8b9"
 };
