@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+
+    // Each person's plan, journal, memory verses and prayers: only they can read or write.
+    match /users/{uid}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Shared progress card. Readable one at a time by signed-in people who know the id
+    // (friends add each other by code). No one can list everyone's progress.
+    match /progress/{uid} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Friend codes: 6-character code -> account id. Create once, never change.
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['uid']);
+      allow update, delete: if false;
+    }
+
+    // Encouragement notes between friends.
+    match /cheers/{id} {
+      allow read: if signedIn() && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.from == request.auth.uid
+                    && request.resource.data.text is string && request.resource.data.text.size() <= 140;
+      allow delete: if signedIn() && resource.data.to == request.auth.uid;
+      allow update: if false;
+    }
+  }
+}

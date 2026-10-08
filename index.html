@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Lamplight: a nightly Bible study app with reading plans, guided reflection, memory verses, a prayer list and friend accountability.">
+<meta name="theme-color" content="#10141C" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3F4F7" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lamplight">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2310141C'/%3E%3Cpath d='M32 10c-4 5-8 9-8 15a8 8 0 0 0 16 0c0-6-4-10-8-15Z' fill='%23E4B45E'/%3E%3Crect x='21' y='38' width='22' height='16' rx='3' fill='%23E4B45E'/%3E%3C/svg%3E">
+<title>Lamplight Bible Study</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one phone-width column, a lamp-lit "tonight" page first, bottom tab bar for the other rooms. */
+:root{
+  --bg:#F3F4F7; --surface:#FFFFFF; --surface-2:#E9ECF2; --fg:#1B2130; --muted:#5B6376; --line:#D8DCE5;
+  --accent:#8A5A12; --accent-ink:#FFFFFF; --accent-soft:#F4E8D1; --good:#2E7650; --good-soft:#DCEFE3; --warn:#9C4E1A; --warn-soft:#F6E3D5;
+  --display:"Newsreader", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#10141C; --surface:#171D28; --surface-2:#212937; --fg:#E8EAF0; --muted:#9AA2B4; --line:#2B3445;
+  --accent:#E4B45E; --accent-ink:#1A1408; --accent-soft:#33291A; --good:#72C493; --good-soft:#1C3127; --warn:#E59C66; --warn-soft:#3A2619; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#10141C; --surface:#171D28; --surface-2:#212937; --fg:#E8EAF0; --muted:#9AA2B4; --line:#2B3445;
+  --accent:#E4B45E; --accent-ink:#1A1408; --accent-soft:#33291A; --good:#72C493; --good-soft:#1C3127; --warn:#E59C66; --warn-soft:#3A2619; color-scheme:dark }
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:20px 110px}
+h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:2rem} h2{font-size:1.45rem} h3{font-size:1.1rem}
+p{margin:0}
+.eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)} .small{font-size:.875rem}
+.stack{display:flex;flex-direction:column;gap:12px}
+.stack-lg{display:flex;flex-direction:column;gap:22px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.quiet{background:var(--surface-2);border-radius:var(--r);padding:14px}
+button,.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;min-height:40px}
+button:hover,.btn:hover{border-color:var(--muted)}
+.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.primary:hover{filter:brightness(1.05);border-color:var(--accent)}
+.ghost{background:transparent;border-color:transparent;color:var(--accent);padding-inline:8px}
+.sm{min-height:32px;padding:5px 12px;font-size:.875rem}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label{font-weight:600;font-size:.95rem;display:block}
+input[type=text],input[type=number],input[type=time],input[type=search],textarea,select{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:76px;resize:vertical;line-height:1.5}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);outline:none}
+.field{display:flex;flex-direction:column;gap:6px}
+.hint{font-size:.85rem;color:var(--muted);font-weight:400}
+
+/* Tonight hero */
+.hero{padding:22px 18px;border-radius:18px;background:var(--surface);border:1px solid var(--line);position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-40% -20% auto auto;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,var(--accent-soft),transparent 70%);pointer-events:none}
+.hero > *{position:relative}
+.ref{font-family:var(--display);font-size:2.2rem;line-height:1.1;margin-block:6px 10px;text-wrap:balance}
+.steps{display:flex;flex-direction:column;gap:14px}
+.step{display:grid;grid-template-columns:30px 1fr;gap:12px}
+.step > div{min-width:0}
+.num{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:.85rem;font-variant-numeric:tabular-nums}
+.num.done{background:var(--accent);color:var(--accent-ink)}
+.prompt{font-family:var(--display);font-size:1.15rem;font-style:italic}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font-size:.85rem;cursor:pointer;min-height:32px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--fg)}
+.banner{border-radius:12px;padding:12px 14px;font-size:.95rem}
+.banner.warn{background:var(--warn-soft);color:var(--fg);border:1px solid var(--warn)}
+.banner.good{background:var(--good-soft);border:1px solid var(--good)}
+.banner.lamp{background:var(--accent-soft);border:1px solid var(--accent)}
+.pill{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.lamp{background:var(--accent-soft);color:var(--accent)}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:420px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat b{display:block;font-family:var(--display);font-size:1.8rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:.8rem;color:var(--muted)}
+.bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;font-size:.72rem;color:var(--muted)}
+.week i{display:block;height:26px;border-radius:7px;background:var(--surface-2);margin-bottom:3px}
+.week i.on{background:var(--accent)}
+.week i.today{outline:1.5px solid var(--accent);outline-offset:1px}
+
+/* Lists */
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.item{padding:14px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.item:first-child{border-top:0}
+.plan-list{max-height:360px;overflow-y:auto}
+.plan-row{display:grid;grid-template-columns:22px 54px 1fr auto;cursor:pointer;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid var(--line);font-size:.92rem}
+.plan-row:first-child{border-top:0}
+.plan-row .d{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem;font-weight:600}
+.plan-row.current{background:var(--accent-soft)}
+.plan-row input{width:18px;height:18px;accent-color:var(--accent);margin:0}
+.plan-row:has(input:checked) .t{color:var(--muted)}
+.plan-row.flash{outline:2px solid var(--accent);outline-offset:-2px}
+.plan-row .t{min-width:0}
+.entry-q{font-size:.8rem;color:var(--muted);font-weight:600;margin-top:4px}
+.entry-a{white-space:pre-wrap;overflow-wrap:anywhere}
+.verse-text{font-family:var(--display);font-size:1.25rem;line-height:1.45}
+.hidden-text{color:transparent;text-shadow:0 0 9px var(--muted);user-select:none}
+
+/* Tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
+nav.tabs button{border:0;border-radius:0;background:transparent;flex-direction:column;gap:2px;font-size:.72rem;font-weight:600;color:var(--muted);min-height:58px;padding:6px 2px}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button[aria-current="page"]{color:var(--accent)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;font-size:.9rem;z-index:9;max-width:calc(100% - 32px)}
+.plans{display:grid;gap:10px}
+.plan-opt{text-align:left;border-radius:var(--r);padding:14px 16px;display:block;min-height:0;width:100%;background:var(--surface)}
+.plan-opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.plan-opt strong{display:block;font-family:var(--display);font-size:1.15rem}
+.plan-opt span{font-weight:400;color:var(--muted);font-size:.9rem}
+.switch{display:flex;align-items:center;gap:10px;font-weight:600}
+.switch input{width:20px;height:20px;accent-color:var(--accent)}
+hr{border:0;border-top:1px solid var(--line);margin:0}
+@media (prefers-reduced-motion:no-preference){ .fade{animation:fade .25s ease-out} @keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}} }
+</style>
+
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="stack" style="padding-top:40px">
+    <p class="eyebrow">Lamplight</p>
+    <h1>Getting tonight's reading ready…</h1>
+    <p class="muted">Your plan, journal, memory verses and prayer list load here.</p>
+  </div>
+</div>
+<nav class="tabs" id="tabs" hidden><div class="in">
+  <button data-tab="tonight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c-1.5 2-3 3.4-3 5.5A3 3 0 0 0 12 11.5a3 3 0 0 0 3-3C15 6.4 13.5 5 12 3Z"/><path d="M8 14h8v6a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-6Z"/></svg>Tonight</button>
+  <button data-tab="progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Progress</button>
+  <button data-tab="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>Journal</button>
+  <button data-tab="verses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 6c-2-1.5-5-2-8-1.5V19c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V4.5C17 4 14 4.5 12 6Z"/><path d="M12 6v14.5"/></svg>Verses</button>
+  <button data-tab="prayer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10Z"/></svg>Prayer</button>
+</div></nav>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const TBR = ["Genesis 1-3", "Genesis 4-7", "Genesis 8-11", "Job 1-5", "Job 6-9", "Job 10-13", "Job 14-16", "Job 17-20", "Job 21-23", "Job 24-28", "Job 29-31", "Job 32-34", "Job 35-37", "Job 38-39", "Job 40-42", "Genesis 12-15", "Genesis 16-18", "Genesis 19-21", "Genesis 22-24", "Genesis 25-26", "Genesis 27-29", "Genesis 30-31", "Genesis 32-34", "Genesis 35-37", "Genesis 38-40", "Genesis 41-42", "Genesis 43-45", "Genesis 46-47", "Genesis 48-50", "Exodus 1-3", "Exodus 4-6", "Exodus 7-9", "Exodus 10-12", "Exodus 13-15", "Exodus 16-18", "Exodus 19-21", "Exodus 22-24", "Exodus 25-27", "Exodus 28-29", "Exodus 30-32", "Exodus 33-35", "Exodus 36-38", "Exodus 39-40", "Leviticus 1-4", "Leviticus 5-7", "Leviticus 8-10", "Leviticus 11-13", "Leviticus 14-15", "Leviticus 16-18", "Leviticus 19-21", "Leviticus 22-23", "Leviticus 24-25", "Leviticus 26-27", "Numbers 1-2", "Numbers 3-4", "Numbers 5-6", "Numbers 7", "Numbers 8-10", "Numbers 11-13", "Numbers 14-15; Psalm 90", "Numbers 16-17", "Numbers 18-20", "Numbers 21-22", "Numbers 23-25", "Numbers 26-27", "Numbers 28-30", "Numbers 31-32", "Numbers 33-34", "Numbers 35-36", "Deuteronomy 1-2", "Deuteronomy 3-4", "Deuteronomy 5-7", "Deuteronomy 8-10", "Deuteronomy 11-13", "Deuteronomy 14-16", "Deuteronomy 17-20", "Deuteronomy 21-23", "Deuteronomy 24-27", "Deuteronomy 28-29", "Deuteronomy 30-31", "Deuteronomy 32-34; Psalm 91", "Joshua 1-4", "Joshua 5-8", "Joshua 9-11", "Joshua 12-15", "Joshua 16-18", "Joshua 19-21", "Joshua 22-24", "Judges 1-2", "Judges 3-5", "Judges 6-7", "Judges 8-9", "Judges 10-12", "Judges 13-15", "Judges 16-18", "Judges 19-21", "Ruth 1-4", "1 Samuel 1-3", "1 Samuel 4-8", "1 Samuel 9-12", "1 Samuel 13-14", "1 Samuel 15-17", "1 Samuel 18-20; Psalms 11, 59", "1 Samuel 21-24", "Psalms 7, 27, 31, 34, 52", "Psalms 56, 120, 140-142", "1 Samuel 25-27", "Psalms 17, 35, 54, 63", "1 Samuel 28-31; Psalm 18", "Psalms 121, 123-125, 128-130", "2 Samuel 1-4", "Psalms 6, 8-10, 14, 16, 19, 21", "1 Chronicles 1-2", "Psalms 43-45, 49, 84-85, 87", "1 Chronicles 3-5", "Psalms 73, 77-78", "1 Chronicles 6", "Psalms 81, 88, 92-93", "1 Chronicles 7-10", "Psalms 102-104", "2 Samuel 5:1-10; 1 Chronicles 11-12", "Psalm 133", "Psalms 106-107", "2 Samuel 5:11-6:23; 1 Chronicles 13-16", "Psalms 1-2, 15, 22-24, 47, 68", "Psalms 89, 96, 100-101, 105, 132", "2 Samuel 7; 1 Chronicles 17", "Psalms 25, 29, 33, 36, 39", "2 Samuel 8-9; 1 Chronicles 18", "Psalms 50, 53, 60, 75", "2 Samuel 10; 1 Chronicles 19; Psalm 20", "Psalms 65-67, 69-70", "2 Samuel 11-12; 1 Chronicles 20", "Psalms 32, 51, 86, 122", "2 Samuel 13-15", "Psalms 3-4, 12-13, 28, 55", "2 Samuel 16-18", "Psalms 26, 40, 58, 61-62, 64", "2 Samuel 19-21", "Psalms 5, 38, 41-42", "2 Samuel 22-23; Psalm 57", "Psalms 95, 97-99", "2 Samuel 24; 1 Chronicles 21-22; Psalm 30", "Psalms 108-110", "1 Chronicles 23-25", "Psalms 131, 138-139, 143-145", "1 Chronicles 26-29; Psalm 127", "Psalms 111-118", "1 Kings 1-2; Psalms 37, 71, 94", "Psalm 119:1-88", "1 Kings 3-4; 2 Chronicles 1; Psalm 72", "Psalm 119:89-176", "Song of Songs 1-8", "Proverbs 1-3", "Proverbs 4-6", "Proverbs 7-9", "Proverbs 10-12", "Proverbs 13-15", "Proverbs 16-18", "Proverbs 19-21", "Proverbs 22-24", "1 Kings 5-6; 2 Chronicles 2-3", "1 Kings 7; 2 Chronicles 4", "1 Kings 8; 2 Chronicles 5", "2 Chronicles 6-7; Psalm 136", "Psalms 134, 146-150", "1 Kings 9; 2 Chronicles 8", "Proverbs 25-26", "Proverbs 27-29", "Ecclesiastes 1-6", "Ecclesiastes 7-12", "1 Kings 10-11; 2 Chronicles 9", "Proverbs 30-31", "1 Kings 12-14", "2 Chronicles 10-12", "1 Kings 15:1-24; 2 Chronicles 13-16", "1 Kings 15:25-16:34; 2 Chronicles 17", "1 Kings 17-19", "1 Kings 20-21", "1 Kings 22; 2 Chronicles 18", "2 Chronicles 19-23", "Obadiah; Psalms 82-83", "2 Kings 1-4", "2 Kings 5-8", "2 Kings 9-11", "2 Kings 12-13; 2 Chronicles 24", "2 Kings 14; 2 Chronicles 25", "Jonah 1-4", "2 Kings 15; 2 Chronicles 26", "Isaiah 1-4", "Isaiah 5-8", "Amos 1-5", "Amos 6-9", "2 Chronicles 27; Isaiah 9-12", "Micah 1-7", "2 Chronicles 28; 2 Kings 16-17", "Isaiah 13-17", "Isaiah 18-22", "Isaiah 23-27", "2 Kings 18:1-8; 2 Chronicles 29-31; Psalm 48", "Hosea 1-7", "Hosea 8-14", "Isaiah 28-30", "Isaiah 31-34", "Isaiah 35-36", "Isaiah 37-39; Psalm 76", "Isaiah 40-43", "Isaiah 44-48", "2 Kings 18:9-19:37; Psalms 46, 80, 135", "Isaiah 49-53", "Isaiah 54-58", "Isaiah 59-63", "Isaiah 64-66", "2 Kings 20-21", "2 Chronicles 32-33", "Nahum 1-3", "2 Kings 22-23; 2 Chronicles 34-35", "Zephaniah 1-3", "Jeremiah 1-3", "Jeremiah 4-6", "Jeremiah 7-9", "Jeremiah 10-13", "Jeremiah 14-17", "Jeremiah 18-22", "Jeremiah 23-25", "Jeremiah 26-29", "Jeremiah 30-31", "Jeremiah 32-34", "Jeremiah 35-37", "Jeremiah 38-40; Psalms 74, 79", "2 Kings 24-25; 2 Chronicles 36", "Habakkuk 1-3", "Jeremiah 41-45", "Jeremiah 46-48", "Jeremiah 49-50", "Jeremiah 51-52", "Lamentations 1:1-3:36", "Lamentations 3:37-5:22", "Ezekiel 1-4", "Ezekiel 5-8", "Ezekiel 9-12", "Ezekiel 13-15", "Ezekiel 16-17", "Ezekiel 18-19", "Ezekiel 20-21", "Ezekiel 22-23", "Ezekiel 24-27", "Ezekiel 28-31", "Ezekiel 32-34", "Ezekiel 35-37", "Ezekiel 38-39", "Ezekiel 40-41", "Ezekiel 42-43", "Ezekiel 44-45", "Ezekiel 46-48", "Joel 1-3", "Daniel 1-3", "Daniel 4-6", "Daniel 7-9", "Daniel 10-12", "Ezra 1-3", "Ezra 4-6; Psalm 137", "Haggai 1-2", "Zechariah 1-7", "Zechariah 8-14", "Esther 1-5", "Esther 6-10", "Ezra 7-10", "Nehemiah 1-5", "Nehemiah 6-7", "Nehemiah 8-10", "Nehemiah 11-13; Psalm 126", "Malachi 1-4", "Luke 1; John 1:1-14", "Matthew 1; Luke 2:1-38", "Matthew 2; Luke 2:39-52", "Matthew 3; Mark 1; Luke 3", "Matthew 4; Luke 4-5; John 1:15-51", "John 2-4", "Mark 2", "John 5", "Matthew 12:1-21; Mark 3; Luke 6", "Matthew 5-7", "Matthew 8:1-13; Luke 7", "Matthew 11", "Matthew 12:22-50; Luke 11", "Matthew 13; Luke 8", "Matthew 8:14-34; Mark 4-5", "Matthew 9-10", "Matthew 14; Mark 6; Luke 9:1-17", "John 6", "Matthew 15; Mark 7", "Matthew 16; Mark 8; Luke 9:18-27", "Matthew 17; Mark 9; Luke 9:28-62", "Matthew 18", "John 7-8", "John 9:1-10:21", "Luke 10-11; John 10:22-42", "Luke 12-13", "Luke 14-15", "Luke 16:1-17:10", "John 11", "Luke 17:11-18:14", "Matthew 19; Mark 10", "Matthew 20-21", "Luke 18:15-19:48", "Mark 11; John 12", "Matthew 22; Mark 12", "Matthew 23; Luke 20-21", "Mark 13", "Matthew 24", "Matthew 25", "Matthew 26; Mark 14", "Luke 22; John 13", "John 14-17", "Matthew 27; Mark 15", "Luke 23; John 18-19", "Matthew 28; Mark 16", "Luke 24; John 20-21", "Acts 1-3", "Acts 4-6", "Acts 7-8", "Acts 9-10", "Acts 11-12", "Acts 13-14", "James 1-5", "Acts 15-16", "Galatians 1-3", "Galatians 4-6", "Acts 17:1-18:18", "1 Thessalonians 1-5; 2 Thessalonians 1-3", "Acts 18:19-19:41", "1 Corinthians 1-4", "1 Corinthians 5-8", "1 Corinthians 9-11", "1 Corinthians 12-14", "1 Corinthians 15-16", "2 Corinthians 1-4", "2 Corinthians 5-9", "2 Corinthians 10-13", "Acts 20:1-3; Romans 1-3", "Romans 4-7", "Romans 8-10", "Romans 11-13", "Romans 14-16", "Acts 20:4-23:35", "Acts 24-26", "Acts 27-28", "Colossians 1-4; Philemon", "Ephesians 1-6", "Philippians 1-4", "1 Timothy 1-6", "Titus 1-3", "1 Peter 1-5", "Hebrews 1-6", "Hebrews 7-10", "Hebrews 11-13", "2 Timothy 1-4", "2 Peter 1-3; Jude", "1 John 1-5", "2 John; 3 John", "Revelation 1-5", "Revelation 6-11", "Revelation 12-18", "Revelation 19-22"];
+const BOOKS = [["Genesis",50],["Exodus",40],["Leviticus",27],["Numbers",36],["Deuteronomy",34],["Joshua",24],["Judges",21],["Ruth",4],["1 Samuel",31],["2 Samuel",24],["1 Kings",22],["2 Kings",25],["1 Chronicles",29],["2 Chronicles",36],["Ezra",10],["Nehemiah",13],["Esther",10],["Job",42],["Psalms",150],["Proverbs",31],["Ecclesiastes",12],["Song of Songs",8],["Isaiah",66],["Jeremiah",52],["Lamentations",5],["Ezekiel",48],["Daniel",12],["Hosea",14],["Joel",3],["Amos",9],["Obadiah",1],["Jonah",4],["Micah",7],["Nahum",3],["Habakkuk",3],["Zephaniah",3],["Haggai",2],["Zechariah",14],["Malachi",4],["Matthew",28],["Mark",16],["Luke",24],["John",21],["Acts",28],["Romans",16],["1 Corinthians",16],["2 Corinthians",13],["Galatians",6],["Ephesians",6],["Philippians",4],["Colossians",4],["1 Thessalonians",5],["2 Thessalonians",3],["1 Timothy",6],["2 Timothy",4],["Titus",3],["Philemon",1],["Hebrews",13],["James",5],["1 Peter",5],["2 Peter",3],["1 John",5],["2 John",1],["3 John",1],["Jude",1],["Revelation",22]];
+const TOPICS = ["Faith","Anxiety","Discipline","Relationships","Leadership","Money","Purpose","Temptation","Gratitude","Obedience"];
+const ONE_CH = new Set(["Obadiah","Philemon","2 John","3 John","Jude"]);
+
+/* ---------- plans ---------- */
+function chapterList(fromIdx, toIdx){ const out=[]; for(let b=fromIdx;b<=toIdx;b++) for(let c=1;c<=BOOKS[b][1];c++) out.push([BOOKS[b][0],c]); return out; }
+function formatChunk(chs){
+  const groups=[]; for(const [b,c] of chs){ const g=groups[groups.length-1]; if(g&&g.b===b&&g.e===c-1) g.e=c; else groups.push({b,s:c,e:c}); }
+  return groups.map(g=> ONE_CH.has(g.b)?g.b : `${g.b} ${g.s===g.e?g.s:g.s+"-"+g.e}`).join("; ");
+}
+function spread(chs, days){ const out=[]; for(let d=0;d<days;d++){ const a=Math.floor(d*chs.length/days), z=Math.floor((d+1)*chs.length/days); out.push(formatChunk(chs.slice(a,z))); } return out; }
+function perDay(chs, n){ const out=[]; for(let i=0;i<chs.length;i+=n) out.push(formatChunk(chs.slice(i,i+n))); return out; }
+const planCache={};
+function getPlan(p){
+  const key = p.planId==="book" ? `book:${p.bookFrom}:${p.bookTo}:${p.perDay}` : p.planId;
+  if(planCache[key]) return planCache[key];
+  let days, name;
+  if(p.planId==="tbr"){ days=TBR; name="The Bible Recap"; }
+  else if(p.planId==="year"){ days=spread(chapterList(0,65),365); name="Bible in a Year"; }
+  else if(p.planId==="nt"){ days=perDay(chapterList(39,65),1); name="New Testament"; }
+  else { const a=+p.bookFrom||0, z=Math.max(a,+p.bookTo||a); days=perDay(chapterList(a,z), Math.max(1,+p.perDay||1)); name = a===z?BOOKS[a][0]:`${BOOKS[a][0]} to ${BOOKS[z][0]}`; }
+  return planCache[key]={days,name,key};
+}
+function countChapters(ref){
+  let n=0;
+  for(const seg of ref.split(";")){
+    const m=seg.trim().match(/^(\d?\s?[A-Za-z][A-Za-z ]*?)(?:\s+(\d.*))?$/); if(!m) continue;
+    if(!m[2]){ n+=1; continue; }
+    for(const it of m[2].split(",")){
+      const [a,b]=it.trim().split("-");
+      if(!b){ n+=1; continue; }
+      const ca=parseInt(a), aHasV=a.includes(":"), bHasC=b.includes(":");
+      if(aHasV && !bHasC) n+=1; else n+= (parseInt(b)-ca+1)||1;
+    }
+  }
+  return n;
+}
+function gatewayURL(ref){
+  const parts=[];
+  for(const seg of ref.split(";")){ const s=seg.trim(); const m=s.match(/^(\d?\s?[A-Za-z][A-Za-z ]*?)(?:\s+(\d.*))?$/);
+    if(!m||!m[2]) { parts.push(s); continue; }
+    const book=m[1].trim().replace(/^Psalms$/,"Psalm"); for(const it of m[2].split(",")) parts.push(`${book} ${it.trim()}`); }
+  return "https://www.biblegateway.com/passage/?search="+encodeURIComponent(parts.join("; "))+"&version=NIV";
+}
+
+/* ---------- dates ---------- */
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const parseISO = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
+const today = () => iso(new Date());
+const addDays = (s,n) => { const d=parseISO(s); d.setDate(d.getDate()+n); return iso(d); };
+const diffDays = (a,b) => Math.round((parseISO(b)-parseISO(a))/864e5);
+const fmtDate = (s,opts={month:"short",day:"numeric"}) => parseISO(s).toLocaleDateString(undefined,opts);
+const fmtTime = t => { const [h,m]=t.split(":").map(Number); const d=new Date(); d.setHours(h,m,0,0); return d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}); };
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid8 = () => Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+let toastT; function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2400); }
+function lsGet(k,f){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):f; }catch(e){ return f; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+
+/* ---------- storage: Firebase account (synced) or this device only ---------- */
+const FB_ON = !!(window.FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && !/^PASTE/.test(FIREBASE_CONFIG.apiKey) && window.firebase);
+let fbAuth=null, fbDb=null;
+if(FB_ON){
+  firebase.initializeApp(FIREBASE_CONFIG);
+  fbAuth=firebase.auth(); fbDb=firebase.firestore();
+  fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+}
+const S = { mode:"loading", uid:null, email:"", profile:null, entries:{}, verses:{}, prayers:{}, partners:[], cheers:[], canShare:false, unsubs:[] };
+const LKEY="lamplight:v1", LOCALONLY="lamplight:localOnly";
+const queues={};
+function serial(key, fn){ const p=(queues[key]||Promise.resolve()).then(fn,fn); queues[key]=p.catch(()=>{}); return p; }
+function localSave(){ if(S.mode==="local") lsSet(LKEY,{profile:S.profile,entries:S.entries,verses:S.verses,prayers:S.prayers}); }
+function base(){ return fbDb.collection("users").doc(S.uid); }
+const clean = o => JSON.parse(JSON.stringify(o));
+async function saveProfile(){
+  localSave();
+  if(S.mode!=="cloud") return;
+  const body=clean(S.profile);
+  return serial("profile",()=>base().set(body)).catch(dbFail);
+}
+async function putItem(kind,id){
+  localSave();
+  if(S.mode!=="cloud") return;
+  const obj=S[kind][id];
+  return serial(kind+id,()=> obj? base().collection(kind).doc(id).set(clean(obj)) : base().collection(kind).doc(id).delete()).catch(dbFail);
+}
+function dbFail(e){ console.warn(e); toast("Couldn't save to your account. Check your connection."); }
+const debouncers={};
+function debounce(key,fn,ms=900){ clearTimeout(debouncers[key]); debouncers[key]=setTimeout(fn,ms); }
+
+function loadLocal(){ const l=lsGet(LKEY,null)||{}; Object.assign(S,{profile:l.profile||null,entries:l.entries||{},verses:l.verses||{},prayers:l.prayers||{}}); }
+function boot(){
+  if(!FB_ON){ S.mode="local"; loadLocal(); render(); return; }
+  fbAuth.getRedirectResult().catch(e=>toast(authMsg(e)));
+  fbAuth.onAuthStateChanged(async u=>{
+    S.unsubs.forEach(f=>f()); S.unsubs=[]; S.partners=[]; S.cheers=[];
+    if(!u){
+      S.uid=null; S.canShare=false;
+      if(lsGet(LOCALONLY,false)){ S.mode="local"; loadLocal(); } else { S.mode="signedout"; S.profile=null; }
+      render(); return;
+    }
+    S.mode="loading"; render();
+    S.uid=u.uid; S.email=u.email||""; S.canShare=true;
+    try{
+      const snap=await base().get();
+      S.profile=snap.exists?snap.data():null; S.entries={}; S.verses={}; S.prayers={};
+      for(const kind of ["entries","verses","prayers"]){ const q=await base().collection(kind).get(); q.forEach(d=>S[kind][d.id]=d.data()); }
+      const local=lsGet(LKEY,null);
+      if(!S.profile && local && local.profile){ // move device-only data into the new account
+        Object.assign(S,{profile:local.profile,entries:local.entries||{},verses:local.verses||{},prayers:local.prayers||{}});
+        S.mode="cloud"; await saveProfile();
+        for(const k of ["entries","verses","prayers"]) for(const i in S[k]) await putItem(k,i);
+        toast("Moved your study from this device into your account");
+      }
+      S.mode="cloud";
+      try{ localStorage.removeItem(LOCALONLY); }catch(e){}
+      if(S.profile){ await ensureCode(); listenShared(); }
+    }catch(e){ console.warn(e); toast("Couldn't load your account. Check your connection."); S.mode="cloud"; }
+    render();
+  });
+}
+function authMsg(e){ const c=(e&&e.code)||""; if(c.includes("unauthorized-domain")) return "This website isn't approved in Firebase yet. Add it under Authentication → Settings → Authorized domains."; if(c.includes("popup-closed")||c.includes("cancelled")) return "Sign-in cancelled"; return "Sign-in didn't work. Try again."; }
+async function signIn(){
+  const p=new firebase.auth.GoogleAuthProvider();
+  try{ await fbAuth.signInWithPopup(p); }
+  catch(e){ if(/popup-blocked|operation-not-supported|web-storage/.test(e.code||"")) fbAuth.signInWithRedirect(p); else toast(authMsg(e)); }
+}
+function useWithoutAccount(){ lsSet(LOCALONLY,true); S.mode="local"; loadLocal(); render(); }
+async function signOut(){ await fbAuth.signOut(); try{ localStorage.removeItem(LOCALONLY); }catch(e){} }
+
+/* ---------- accountability: friend codes ---------- */
+const CODE_CHARS="ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+async function ensureCode(){
+  if(S.profile.code) return;
+  for(let tries=0;tries<6;tries++){
+    let c=""; for(let i=0;i<6;i++) c+=CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+    try{ const ref=fbDb.collection("codes").doc(c); if((await ref.get()).exists) continue; await ref.set({uid:S.uid}); S.profile.code=c; await saveProfile(); return; }catch(e){ console.warn(e); }
+  }
+}
+function listenShared(){
+  const friends=S.profile.friends||[];
+  S.partners=[];
+  friends.forEach(fid=>{
+    S.unsubs.push(fbDb.collection("progress").doc(fid).onSnapshot(d=>{
+      S.partners=S.partners.filter(x=>x.id!==fid);
+      S.partners.push(d.exists?{id:fid,...d.data()}:{id:fid,hidden:true});
+      if(S.tab==="progress") render();
+    },()=>{}));
+  });
+  S.unsubs.push(fbDb.collection("cheers").where("to","==",S.uid).onSnapshot(q=>{
+    S.cheers=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at.localeCompare(a.at));
+    if(S.tab==="progress"||S.tab==="tonight") render();
+  },()=>{}));
+}
+function relisten(){ S.unsubs.forEach(f=>f()); S.unsubs=[]; listenShared(); }
+async function addFriend(code){
+  code=code.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(code.length!==6) return toast("Friend codes are 6 characters");
+  if(code===S.profile.code) return toast("That's your own code");
+  try{
+    const d=await fbDb.collection("codes").doc(code).get();
+    if(!d.exists) return toast("No one has that code. Check it and try again.");
+    const fid=d.data().uid; const fr=S.profile.friends||[];
+    if(fr.includes(fid)) return toast("Already on your list");
+    S.profile.friends=[...fr,fid]; await saveProfile(); relisten(); toast("Friend added. Ask them to add your code too."); render();
+  }catch(e){ toast("Couldn't add that friend. Try again."); }
+}
+async function removeFriend(fid){ S.profile.friends=(S.profile.friends||[]).filter(x=>x!==fid); await saveProfile(); relisten(); render(); }
+async function publishProgress(){
+  if(S.mode!=="cloud"||!S.profile) return;
+  const ref=fbDb.collection("progress").doc(S.uid);
+  if(!S.profile.share){ return serial("progress",()=>ref.delete()).catch(()=>{}); }
+  const st=stats();
+  const body={nickname:(S.profile.nickname||"").slice(0,40),plan:st.planName,day:st.next?st.next.day:st.total,total:st.total,pct:st.pct,streak:st.streak,daysStudied:st.daysStudied,lastStudied:st.lastStudied||"",verses:st.verses,actionsDone:st.actionsDone,updatedAt:new Date().toISOString()};
+  return serial("progress",()=>ref.set(body)).catch(()=>{});
+}
+async function sendCheer(to,text){
+  await fbDb.collection("cheers").add({to,from:S.uid,fromName:(S.profile.nickname||"").slice(0,40),text:text.slice(0,140),at:new Date().toISOString()});
+}
+
+/* ---------- derived state ---------- */
+function stats(){
+  const p=S.profile, plan=getPlan(p), total=plan.days.length, done=doneMap(p);
+  const doneDays=Object.keys(done).map(Number).filter(d=>d>=1&&d<=total);
+  const nd=nextUnread(plan.days,done), next=nd?{day:nd,ref:plan.days[nd-1]}:null;
+  const dates=new Set(Object.values(done).filter(v=>/^\d{4}-/.test(v))); const t=today();
+  let streak=0, cur=dates.has(t)?t:addDays(t,-1); while(dates.has(cur)){ streak++; cur=addDays(cur,-1); }
+  const lastStudied=[...dates].sort().pop()||null;
+  const completedCount=doneDays.length;
+  const remaining=total-completedCount;
+  const doneTonight=dates.has(t);
+  const finish = remaining<=0? null : addDays(t, doneTonight? remaining : remaining-1);
+  const chapters=doneDays.reduce((n,d)=>n+countChapters(plan.days[d-1]||""),0);
+  const entries=Object.values(S.entries);
+  return { planName:plan.name, total, next, streak, lastStudied, daysStudied:dates.size, chapters, remaining, finish, doneTonight,
+    pct:Math.round(completedCount/total*100), verses:Object.keys(S.verses).length,
+    prayersActive:Object.values(S.prayers).filter(x=>!x.answered).length, prayersAnswered:Object.values(S.prayers).filter(x=>x.answered).length,
+    actionsDone:entries.filter(e=>e.followUp==="did").length, actionsAsked:entries.filter(e=>e.followUp).length };
+}
+function pendingFollowUp(){
+  const t=today();
+  return Object.values(S.entries).filter(e=>e.action&&e.completedOn&&e.completedOn<t&&!e.followUp).sort((a,b)=>b.completedOn.localeCompare(a.completedOn))[0]||null;
+}
+
+/* ---------- render ---------- */
+S.tab=lsGet("lamplight:tab","tonight");
+function setTab(t){ S.tab=t; lsSet("lamplight:tab",t); render(); window.scrollTo(0,0); }
+$("#tabs").addEventListener("click",e=>{ const b=e.target.closest("button[data-tab]"); if(b) setTab(b.dataset.tab); });
+let rendering=false;
+function render(){
+  if(rendering){ setTimeout(render,0); return; }
+  rendering=true;
+  try{ const ae=document.activeElement; if(ae&&ae!==document.body&&$("#app").contains(ae)) ae.blur(); renderNow(); } finally { rendering=false; }
+}
+function renderNow(){
+  const app=$("#app");
+  if(S.mode==="loading"){ $("#tabs").hidden=true; app.innerHTML=`<div class="stack" style="padding-top:40px"><p class="eyebrow">Lamplight</p><h1>Opening your study…</h1></div>`; return; }
+  if(S.mode==="signedout"){ $("#tabs").hidden=true; app.innerHTML=viewWelcome(); $("#signIn").onclick=signIn; $("#noAcct").onclick=useWithoutAccount; return; }
+  if(!S.profile){ $("#tabs").hidden=true; app.innerHTML=viewSetup(); bindSetup(); return; }
+  $("#tabs").hidden=false;
+  document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-current", b.dataset.tab===S.tab?"page":"false"));
+  const v={tonight:viewTonight,progress:viewProgress,journal:viewJournal,verses:viewVerses,prayer:viewPrayer}[S.tab]||viewTonight;
+  app.innerHTML=`<div class="fade">${v()}</div>`;
+  ({tonight:bindTonight,progress:bindProgress,journal:bindJournal,verses:bindVerses,prayer:bindPrayer}[S.tab]||bindTonight)();
+}
+
+/* ---------- welcome ---------- */
+function viewWelcome(){
+  return `<div class="stack-lg" style="padding-top:28px">
+    <div class="stack"><p class="eyebrow">Lamplight · nightly Bible study</p><h1>Read, reflect, and live it out</h1>
+    <p class="muted">Twenty to thirty minutes a night. Follow a reading plan, answer four questions about the passage, and choose one thing to do tomorrow. Keep a journal, memorize verses, track prayers, and encourage friends.</p></div>
+    <div class="card stack">
+      <button class="primary" id="signIn" style="align-self:flex-start">Sign in with Google</button>
+      <p class="small muted">Saves your study to your account so it follows you to any device, and lets you add friends for accountability. Your journal, prayers and verses are private to you.</p>
+      <hr>
+      <button id="noAcct" style="align-self:flex-start">Use without an account</button>
+      <p class="small muted">Saves in this browser only. You can sign in later and bring your study with you.</p>
+    </div></div>`;
+}
+
+/* ---------- setup ---------- */
+let draftSetup={planId:"tbr",bookFrom:39,bookTo:39,perDay:1,reminder:"20:00",nickname:"",done:{}};
+function prevDoneFor(d){ const k=getPlan(d).key; return S._prev&&S._prev.done&&S._prev.done[k]? {...S._prev.done[k]} : {}; }
+function nextUnread(days,done){ const keys=Object.keys(done).map(Number); const max=keys.length?Math.max(...keys):0;
+  for(let i=max+1;i<=days.length;i++) if(!done[i]) return i; for(let i=1;i<=days.length;i++) if(!done[i]) return i; return null; }
+function planListHTML(plan,done,nextDay){
+  return plan.days.map((r,i)=>{ const d=i+1, c=!!done[d];
+    return `<label class="plan-row ${d===nextDay?"current":""}" id="pr-${d}"><input type="checkbox" data-day="${d}" ${c?"checked":""} aria-label="Day ${d} read"><span class="d">Day ${d}</span><span class="t">${esc(r)}</span>${d===nextDay?'<span class="pill lamp">Next</span>':""}</label>`; }).join("");
+}
+function planTools(total){
+  return `<div class="stack" style="gap:8px">
+    <input type="search" id="findDay" placeholder="Jump to a book or day, e.g. Judges or 95">
+    <div class="row"><span class="small" style="font-weight:600">I've read every day through Day</span><input type="number" id="thru" min="1" max="${total}" inputmode="numeric" style="width:90px"><button class="sm" id="thruBtn">Check them off</button></div>
+  </div>`;
+}
+function bindPlanList(getDone,onChange){
+  const list=$("#planList"); if(!list) return;
+  list.addEventListener("change",e=>{ const cb=e.target.closest("input[data-day]"); if(!cb) return; const done=getDone(), d=+cb.dataset.day;
+    if(cb.checked) done[d]=done[d]||"list"; else delete done[d]; onChange(); });
+  const f=$("#findDay"); f.oninput=()=>{ const q=f.value.trim().toLowerCase(); if(!q) return; const rows=[...list.querySelectorAll(".plan-row")];
+    const hit=/^\d+$/.test(q)? $("#pr-"+q) : rows.find(r=>r.querySelector(".t").textContent.toLowerCase().includes(q));
+    if(hit){ list.scrollTop=hit.offsetTop-list.offsetTop-8; hit.classList.add("flash"); setTimeout(()=>hit.classList.remove("flash"),1200); } };
+  $("#thruBtn").onclick=()=>{ const n=+$("#thru").value; const total=list.querySelectorAll(".plan-row").length; if(!n||n<1||n>total) return toast(`Enter a day from 1 to ${total}`);
+    const done=getDone(); for(let i=1;i<=n;i++) done[i]=done[i]||"list"; onChange(); toast(`Days 1–${n} checked off`); };
+}
+function scrollListToNext(){ const list=$("#planList"), cur=list&&list.querySelector(".current"); if(cur) list.scrollTop=cur.offsetTop-list.offsetTop-90; }
+function keepListScroll(fn){ const l=$("#planList"), top=l?l.scrollTop:0, y=window.scrollY; fn(); const n=$("#planList"); if(n) n.scrollTop=top; window.scrollTo(0,y); }
+
+function viewSetup(){
+  const d=draftSetup, plan=getPlan(d), nxt=nextUnread(plan.days,d.done);
+  const opt=(id,t,s)=>`<button class="plan-opt" data-plan="${id}" aria-pressed="${d.planId===id}"><strong>${t}</strong><span>${s}</span></button>`;
+  const bookOpts=sel=>BOOKS.map((b,i)=>`<option value="${i}" ${+sel===i?"selected":""}>${b[0]}</option>`).join("");
+  const checked=Object.keys(d.done).length;
+  return `<div class="stack-lg" style="padding-top:12px">
+    <div class="stack"><p class="eyebrow">Lamplight · nightly Bible study</p><h1>${S._prev?"Choose a plan":"Set up your study"}</h1>
+    <p class="muted">Twenty to thirty minutes a night: read, answer four questions, and pick one thing to do tomorrow. Your journal stays private to you.</p></div>
+    <div class="stack"><h3>What do you want to read?</h3><div class="plans">
+      ${opt("tbr","The Bible Recap","365-day chronological plan, read alongside the daily recap")}
+      ${opt("year","Bible in a Year","Genesis to Revelation in order, about 3 chapters a night")}
+      ${opt("nt","New Testament","Matthew to Revelation, one chapter a night (260 days)")}
+      ${opt("book","A specific book","Pick a book (or a run of books) and how many chapters a night")}
+    </div></div>
+    ${d.planId==="book"?`<div class="card stack">
+      <div class="row" style="align-items:flex-end"><div class="field" style="flex:1;min-width:140px"><label for="bf">Book</label><select id="bf">${bookOpts(d.bookFrom)}</select></div>
+      <div class="field" style="flex:1;min-width:140px"><label for="bt">Through <span class="hint">(same book = just that book)</span></label><select id="bt">${bookOpts(d.bookTo)}</select></div></div>
+      <div class="field"><label for="pd">Chapters a night</label><input id="pd" type="number" min="1" max="10" value="${d.perDay}"></div></div>`:""}
+    <div class="stack"><h3>Check off what you've already read</h3>
+      <p class="small muted">Scroll the plan and tick the days you've finished, or check off everything through a day at once. Leave it empty to start at Day 1.</p>
+      ${planTools(plan.days.length)}
+      <div class="list plan-list" id="planList">${planListHTML(plan,d.done,nxt)}</div>
+      <p class="small muted">${checked} of ${plan.days.length} days checked.</p>
+    </div>
+    <div class="card stack">
+      <div class="field"><label for="rt">When do you usually study?</label><input id="rt" type="time" value="${d.reminder}"></div>
+      <div class="field"><label for="nn">First name for friends <span class="hint">(optional, shown only if you share progress)</span></label><input id="nn" type="text" maxlength="40" value="${esc(d.nickname)}" placeholder="e.g. Alberto"></div>
+    </div>
+    <div class="row"><button class="primary" id="startBtn">${nxt?`Start at Day ${nxt}: ${esc(plan.days[nxt-1])}`:"Save plan"}</button>${S._prev?'<button id="cancelSetup">Keep my current plan</button>':""}</div>
+  </div>`;
+}
+function bindSetup(){
+  const resetDone=()=>{ draftSetup.done=prevDoneFor(draftSetup); };
+  document.querySelectorAll("[data-plan]").forEach(b=>b.onclick=()=>{ draftSetup.planId=b.dataset.plan; resetDone(); render(); });
+  ["bf","bt","pd"].forEach(id=>{ const el=$("#"+id); if(el) el.onchange=()=>{ const k={bf:"bookFrom",bt:"bookTo",pd:"perDay"}[id]; draftSetup[k]=+el.value;
+    if(id==="bf"&&draftSetup.bookTo<draftSetup.bookFrom) draftSetup.bookTo=draftSetup.bookFrom; if(id==="bt"&&draftSetup.bookTo<draftSetup.bookFrom) draftSetup.bookFrom=draftSetup.bookTo; resetDone(); render(); }; });
+  bindPlanList(()=>draftSetup.done,()=>keepListScroll(render));
+  scrollListToNext();
+  $("#rt").onchange=e=>draftSetup.reminder=e.target.value||"20:00";
+  $("#nn").oninput=e=>draftSetup.nickname=e.target.value;
+  const cs=$("#cancelSetup"); if(cs) cs.onclick=()=>{ S.profile=S._prev; S._prev=null; setTab("progress"); };
+  $("#startBtn").onclick=async()=>{
+    const d=draftSetup, key=getPlan(d).key, prev=S._prev||{};
+    S.profile={...prev,planId:d.planId,bookFrom:d.bookFrom,bookTo:d.bookTo,perDay:d.perDay,done:{...(prev.done||{}),[key]:{...d.done}},reminder:d.reminder,nickname:d.nickname.trim(),share:!!prev.share,createdOn:prev.createdOn||today()};
+    delete S.profile.completed; delete S.profile.startDay;
+    S._prev=null; await saveProfile(); if(S.mode==="cloud"){ await ensureCode(); relisten(); } publishProgress(); setTab("tonight");
+  };
+}
+function openPlanPicker(){ const p=S.profile; S._prev=p; draftSetup={planId:p.planId,bookFrom:p.bookFrom??39,bookTo:p.bookTo??39,perDay:p.perDay||1,reminder:p.reminder||"20:00",nickname:p.nickname||"",done:{}}; draftSetup.done=prevDoneFor(draftSetup); S.profile=null; render(); window.scrollTo(0,0); }
+function doneMap(p=S.profile){ const k=getPlan(p).key; p.done=p.done||{};
+  if(p.completed){ const c={...p.completed}; for(let i=1;i<(p.startDay||1);i++) if(!c[i]) c[i]="list"; if(!p.done[k]) p.done[k]=c; delete p.completed; delete p.startDay; }
+  return p.done[k]=p.done[k]||{}; }
+
+/* ---------- tonight ---------- */
+function viewTonight(){
+  const st=stats(), p=S.profile, t=today(), fu=pendingFollowUp();
+  const last=st.lastStudied, gap=last?diffDays(last,t):0;
+  const now=new Date(), [rh,rm]=(p.reminder||"20:00").split(":").map(Number); const pastTime=now.getHours()*60+now.getMinutes()>=rh*60+rm;
+  let banner="";
+  if(!st.next) banner=`<div class="banner good"><b>You finished ${esc(st.planName)}.</b> Start another plan from Progress whenever you're ready.</div>`;
+  else if(st.doneTonight&&!S.readAhead) banner=`<div class="banner good"><b>Tonight's study is done.</b> Rest well. Tomorrow picks up at Day ${st.next.day}.</div>`;
+  else if(gap>1) banner=`<div class="banner warn"><b>Welcome back.</b> You've been away ${gap-1} night${gap-1===1?"":"s"}. Nothing piles up: you pick up right where you left off, and your finish date moves to ${fmtDate(st.finish,{month:"long",day:"numeric",year:"numeric"})}.</div>`;
+  else if(pastTime) banner=`<div class="banner lamp">It's past ${fmtTime(p.reminder)}. Tonight's reading is ready.</div>`;
+  const cheer=S.cheers.find(c=>c.at.slice(0,10)>=addDays(t,-2));
+  if(!st.next) return `<div class="stack-lg">${banner}</div>`;
+  if(st.doneTonight && !S.readAhead){
+    const done=Object.values(S.entries).filter(x=>x.completedOn===t).sort((a,b)=>b.day-a.day)[0];
+    return `<div class="stack-lg"><div class="spread"><p class="eyebrow">${fmtDate(t,{weekday:"long",month:"long",day:"numeric"})}</p><span class="pill lamp">${st.streak}-night streak</span></div>
+      ${banner}${cheer?`<div class="banner lamp"><b>${esc(cheer.fromName||"A friend")}:</b> ${esc(cheer.text)}</div>`:""}
+      ${done?`<section class="hero stack"><p class="eyebrow">Tonight · Day ${done.day}</p><p class="ref">${esc(done.ref.replace(/-/g,"–"))}</p>
+        ${done.action?`<div><p class="entry-q">Tomorrow you'll</p><p class="entry-a" style="font-size:1.1rem">${esc(done.action)}</p></div>`:""}
+        ${done.change?`<div><p class="entry-q">God is asking you to change</p><p class="entry-a">${esc(done.change)}</p></div>`:""}</section>`:""}
+      <div class="row"><button id="ahead">Read ahead: Day ${st.next.day}</button><button class="ghost" id="toJournal">Open journal</button></div></div>`;
+  }
+  const e=S.entries[entryId(st.next.day)]||{};
+  const tags=e.tags||[];
+  const q=(id,label,ph)=>`<div class="field"><label class="prompt" for="${id}">${label}</label><textarea id="${id}" placeholder="${ph}">${esc(e[id]||"")}</textarea></div>`;
+  return `<div class="stack-lg">
+    <div class="spread"><div><p class="eyebrow">${fmtDate(t,{weekday:"long",month:"long",day:"numeric"})}</p></div>
+      <div class="row"><span class="pill lamp">${st.streak}-night streak</span></div></div>
+    ${banner}
+    ${cheer?`<div class="banner lamp"><b>${esc(cheer.fromName||"A friend")}:</b> ${esc(cheer.text)}</div>`:""}
+    <section class="hero">
+      <p class="eyebrow">${esc(st.planName)} · Day ${st.next.day} of ${st.total}</p>
+      <p class="ref">${esc(st.next.ref.replace(/-/g,"–"))}</p>
+      <div class="row"><a class="btn primary" href="${gatewayURL(st.next.ref)}" target="_blank" rel="noopener">Read in NIV ↗</a>
+      ${p.planId==="tbr"?`<span class="small muted">Then play Day ${st.next.day} of The Bible Recap.</span>`:""}</div>
+    </section>
+    <div class="steps">
+      ${fu?`<div class="step"><span class="num">✓</span><div class="card stack"><p class="eyebrow">Follow-up</p>
+        <p>Last time you said you'd: <b>${esc(fu.action)}</b></p>
+        <div class="row"><button class="sm" data-fu="did">I did it</button><button class="sm" data-fu="partly">Partly</button><button class="sm" data-fu="not">Not yet</button></div></div></div>`:""}
+      <div class="step"><span class="num ${e.read?"done":""}">1</span><div class="stack"><h3>Read the passage</h3>
+        <label class="switch"><input type="checkbox" id="read" ${e.read?"checked":""}> I read ${esc(st.next.ref)}</label></div></div>
+      <div class="step"><span class="num ${(e.stands&&e.god&&e.change)?"done":""}">2</span><div class="stack"><h3>Reflect</h3>
+        ${q("stands","What stands out to you?","A verse, a detail, a question…")}
+        ${q("god","What does this show you about God?","His character, His promises, how He acts…")}
+        ${q("change","What is God asking you to change?","An attitude, a habit, something to stop or start…")}
+        <div class="field"><label for="keyVerse">Key verse <span class="hint">(optional)</span></label><input id="keyVerse" type="text" value="${esc(e.keyVerse||"")}" placeholder="e.g. 1 Samuel 12:24"></div>
+        <div class="field"><span class="hint">Tag this study</span><div class="chips">${TOPICS.map(x=>`<button class="chip" data-tag="${x}" aria-pressed="${tags.includes(x)}">${x}</button>`).join("")}</div></div>
+      </div></div>
+      <div class="step"><span class="num ${e.action?"done":""}">3</span><div class="stack"><h3>One action for tomorrow</h3>
+        <input id="action" type="text" value="${esc(e.action||"")}" placeholder="Something small and specific you'll actually do">
+        <span class="hint">Tomorrow night you'll be asked how it went.</span></div></div>
+      <div class="step"><span class="num ${e.pray?"done":""}">4</span><div class="stack"><h3>Pray</h3>
+        ${q("pray","What do you need to pray about?","Turn tonight's passage into a prayer…")}
+        <button class="sm" id="toPrayer" style="align-self:flex-start">Add to prayer list</button></div></div>
+    </div>
+    <div class="card stack">
+      <button class="primary" id="complete" style="align-self:flex-start">Finish Day ${st.next.day}</button>
+      <p class="small muted" id="completeHint">Read the passage and write tomorrow's action to finish.</p>
+    </div>
+  </div>`;
+}
+const entryId = day => `${getPlan(S.profile).key.replace(/[^A-Za-z0-9_-]/g,"-")}-d${day}`;
+function curEntry(){ const st=stats(); const id=entryId(st.next.day); if(!S.entries[id]) S.entries[id]={id,plan:st.planName,day:st.next.day,ref:st.next.ref,startedOn:today(),tags:[]}; return S.entries[id]; }
+function bindTonight(){
+  const st=stats(); if(!st.next) return;
+  const ah=$("#ahead"); if(ah){ ah.onclick=()=>{ S.readAhead=true; render(); }; $("#toJournal").onclick=()=>setTab("journal"); return; }
+  const e=()=>curEntry(), save=()=>{ const x=e(); debounce("entry",()=>putItem("entries",x.id)); updateComplete(); };
+  ["stands","god","change","pray","action","keyVerse"].forEach(k=>{ const el=$("#"+k); if(el) el.oninput=()=>{ e()[k]=el.value; save(); }; });
+  $("#read").onchange=ev=>{ e().read=ev.target.checked; save(); render(); };
+  document.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>{ const x=e(), t=b.dataset.tag; x.tags=x.tags.includes(t)?x.tags.filter(y=>y!==t):[...x.tags,t]; b.setAttribute("aria-pressed",x.tags.includes(t)); save(); });
+  document.querySelectorAll("[data-fu]").forEach(b=>b.onclick=async()=>{ const fu=pendingFollowUp(); fu.followUp=b.dataset.fu; fu.followUpOn=today(); await putItem("entries",fu.id);
+    toast(b.dataset.fu==="did"?"Well done. Faithful in little things.":b.dataset.fu==="partly"?"Progress counts. Keep going.":"Grace for today. Try again tomorrow."); render(); });
+  $("#toPrayer").onclick=async()=>{ const txt=($("#pray").value||"").trim(); if(!txt){ toast("Write what you want to pray about first"); return; }
+    const id=uid8(); S.prayers[id]={id,title:txt.split("\n")[0].slice(0,120),details:txt,addedOn:today(),ref:st.next.ref,updates:[],answered:false}; await putItem("prayers",id); toast("Added to your prayer list"); };
+  $("#complete").onclick=async()=>{
+    const x=e(); if(!x.read||!(x.action||"").trim()) return;
+    x.completedOn=today(); clearTimeout(debouncers.entry);
+    doneMap()[st.next.day]=today();
+    await putItem("entries",x.id); await saveProfile(); publishProgress();
+    toast(`Day ${st.next.day} finished`); render(); window.scrollTo(0,0);
+  };
+  updateComplete();
+}
+function updateComplete(){ const b=$("#complete"); if(!b) return; const x=S.entries[entryId(stats().next.day)]||{}; const ok=!!(x.read&&(x.action||"").trim()); b.disabled=!ok; $("#completeHint").hidden=ok; }
+
+/* ---------- progress ---------- */
+function viewProgress(){
+  const st=stats(), p=S.profile, plan=getPlan(p), t=today(), done=doneMap(p);
+  const dates=new Set(Object.values(done).filter(v=>/^\d{4}-/.test(v)));
+  const week=[]; for(let i=6;i>=0;i--){ const d=addDays(t,-i); week.push(`<div><i class="${dates.has(d)?"on":""} ${d===t?"today":""}"></i>${fmtDate(d,{weekday:"narrow"})}</div>`); }
+  const rows=planListHTML(plan,done,st.next&&st.next.day);
+  const others=S.partners.filter(x=>x.id!==S.uid);
+  return `<div class="stack-lg">
+    <div class="stack"><p class="eyebrow">Progress</p><div class="spread"><h2>${esc(st.planName)}</h2><button class="sm" id="switchPlan">Switch plan</button></div>
+      <div class="bar"><i style="width:${st.pct}%"></i></div>
+      <p class="small muted">${st.pct}% through · ${st.remaining} days left${st.finish?` · on pace to finish ${fmtDate(st.finish,{month:"long",day:"numeric",year:"numeric"})}`:""}</p></div>
+    <div class="card stack"><div class="spread"><h3>This week</h3><span class="pill lamp">${st.streak}-night streak</span></div><div class="week">${week.join("")}</div></div>
+    <div class="stats">
+      <div class="stat"><b>${st.daysStudied}</b><span>Nights studied</span></div>
+      <div class="stat"><b>${st.chapters}</b><span>Chapters read</span></div>
+      <div class="stat"><b>${st.actionsAsked?st.actionsDone+"/"+st.actionsAsked:"0"}</b><span>Actions followed through</span></div>
+      <div class="stat"><b>${st.verses}</b><span>Memory verses</span></div>
+      <div class="stat"><b>${st.prayersActive}</b><span>Active prayers</span></div>
+      <div class="stat"><b>${st.prayersAnswered}</b><span>Answered prayers</span></div>
+    </div>
+    <section class="stack"><h3>Accountability</h3>
+      ${S.canShare?`<div class="card stack">
+        <div class="spread"><div><p class="eyebrow">Your friend code</p><p style="font-size:1.6rem;font-weight:700;letter-spacing:.12em;font-variant-numeric:tabular-nums">${esc(p.code||"······")}</p></div><button class="sm" id="copyCode">Copy</button></div>
+        <p class="small muted">Give this code to a friend. When you add each other's codes, you'll see each other's progress.</p>
+        <div class="row"><input type="text" id="addCode" maxlength="8" placeholder="Friend's code" style="flex:1;min-width:140px;text-transform:uppercase"><button class="sm primary" id="addBtn">Add friend</button></div>
+        <hr>
+        <label class="switch"><input type="checkbox" id="share" ${p.share?"checked":""}> Let friends see my progress</label>
+        <p class="small muted">Friends see your plan, day, streak and nights studied. Your journal, prayers and verses stay private.</p>
+        <div class="field"><label for="nick">Name friends see</label><input id="nick" type="text" maxlength="40" value="${esc(p.nickname||"")}" placeholder="Your first name"></div>
+      </div>
+      ${others.length?`<div class="list">${others.map(o=>o.hidden?`<div class="item"><div class="spread"><b class="muted">Waiting on a friend</b><button class="ghost sm" data-unfriend="${esc(o.id)}">Remove</button></div><p class="small muted">They haven't turned on "Let friends see my progress" yet.</p></div>`
+        :`<div class="item"><div class="spread"><b>${esc(o.nickname||"Friend")}</b><span class="pill ${o.lastStudied===t?"good":o.lastStudied&&diffDays(o.lastStudied,t)>2?"warn":""}">${o.lastStudied===t?"Studied tonight":o.lastStudied?"Last studied "+fmtDate(o.lastStudied):"Just started"}</span></div>
+        <p class="small muted">${esc(o.plan)} · Day ${o.day} of ${o.total} · ${o.streak}-night streak · ${o.daysStudied} nights</p>
+        <div class="bar"><i style="width:${o.pct||0}%"></i></div>
+        <div class="row"><input type="text" id="cheer-${esc(o.id)}" maxlength="140" placeholder="Send encouragement" style="flex:1;min-width:160px"><button class="sm" data-cheer="${esc(o.id)}">Send</button></div>
+        <div class="row"><button class="ghost sm" data-unfriend="${esc(o.id)}">Remove friend</button></div></div>`).join("")}</div>`
+      :`<div class="quiet small">No friends added yet. Swap friend codes with someone you want to read alongside.</div>`}
+      ${S.cheers.length?`<div class="stack"><p class="eyebrow">Encouragement you've received</p><div class="list">${S.cheers.slice(0,6).map(c=>`<div class="item"><p>${esc(c.text)}</p><p class="small muted">${esc(c.fromName||"A friend")} · ${fmtDate(c.at.slice(0,10))}</p></div>`).join("")}</div></div>`:""}`
+      :`<div class="quiet small">${FB_ON?"Sign in with Google to add friends and share progress.":"Friend sharing isn't set up on this site yet."}</div>`}
+    </section>
+    <section class="stack" id="plan"><div class="spread"><h3>Reading plan</h3><button class="ghost sm" id="toCur">Go to next reading</button></div>
+      <p class="small muted">Tick days as you read them, or untick to undo. Tonight's reading is always the next unchecked day, so missed nights never pile up.</p>
+      ${planTools(plan.days.length)}
+      <div class="list plan-list" id="planList">${rows}</div></section>
+    <section class="stack"><h3>Settings</h3><div class="card stack">
+      <div class="field"><label for="rem">Study time</label><input id="rem" type="time" value="${p.reminder||"20:00"}"><span class="hint">Tonight's page reminds you once this time passes.</span></div>
+      <hr><div class="spread"><div><b>Reading plan</b><p class="small muted">Switch any time. Each plan keeps its own checkmarks, and your journal, verses and prayers stay.</p></div><button class="sm" id="chg">Switch plan</button></div>
+      <hr>${S.mode==="cloud"?`<div class="spread"><div><b>Account</b><p class="small muted">${esc(S.email)} · synced across devices</p></div><button class="sm" id="signOut">Sign out</button></div>`
+        :`<div class="spread"><div><b>Saved in this browser only</b><p class="small muted">${FB_ON?"Sign in to keep it safe and use it on other devices.":"Clearing your browser data erases it."}</p></div>${FB_ON?'<button class="sm" id="signInLater">Sign in with Google</button>':""}</div>`}
+    </div></section>
+  </div>`;
+}
+function bindProgress(){
+  const p=S.profile;
+  $("#toCur").onclick=scrollListToNext; scrollListToNext();
+  bindPlanList(()=>doneMap(),()=>{ debounce("plan",async()=>{ await saveProfile(); publishProgress(); },600); keepListScroll(render); });
+  $("#switchPlan").onclick=openPlanPicker;
+  $("#rem").onchange=async e=>{ p.reminder=e.target.value||"20:00"; await saveProfile(); toast("Study time saved"); };
+  $("#chg").onclick=openPlanPicker;
+  const sh=$("#share"); if(sh) sh.onchange=async()=>{ p.share=sh.checked; await saveProfile(); await publishProgress(); toast(p.share?"Friends can see your progress":"Progress hidden"); render(); };
+  const nk=$("#nick"); if(nk) nk.oninput=()=>{ p.nickname=nk.value.trim(); debounce("nick",async()=>{ await saveProfile(); publishProgress(); },800); };
+  document.querySelectorAll("[data-cheer]").forEach(b=>b.onclick=async()=>{ const to=b.dataset.cheer, inp=document.getElementById("cheer-"+to), text=(inp.value||"").trim(); if(!text) return;
+    try{ await sendCheer(to,text); inp.value=""; toast("Encouragement sent"); }catch(e){ toast("Couldn't send. Try again."); } });
+  document.querySelectorAll("[data-unfriend]").forEach(b=>b.onclick=()=>{ if(b.dataset.armed) removeFriend(b.dataset.unfriend); else { b.dataset.armed="1"; b.textContent="Tap again to remove"; } });
+  const ab=$("#addBtn"); if(ab) ab.onclick=()=>addFriend($("#addCode").value);
+  const cc=$("#copyCode"); if(cc) cc.onclick=async()=>{ try{ await navigator.clipboard.writeText(p.code||""); toast("Code copied"); }catch(e){ toast("Code: "+(p.code||"")); } };
+  const so=$("#signOut"); if(so) so.onclick=signOut;
+  const sl=$("#signInLater"); if(sl) sl.onclick=signIn;
+}
+
+/* ---------- journal ---------- */
+let jFilter={tag:"",q:""};
+function viewJournal(){
+  let list=Object.values(S.entries).filter(e=>e.completedOn||e.stands||e.god||e.change||e.pray).sort((a,b)=>(b.completedOn||b.startedOn||"").localeCompare(a.completedOn||a.startedOn||""));
+  if(jFilter.tag) list=list.filter(e=>(e.tags||[]).includes(jFilter.tag));
+  if(jFilter.q){ const q=jFilter.q.toLowerCase(); list=list.filter(e=>JSON.stringify(e).toLowerCase().includes(q)); }
+  const used=new Set(Object.values(S.entries).flatMap(e=>e.tags||[]));
+  const fu={did:["good","Did it"],partly:["lamp","Partly"],not:["warn","Not yet"]};
+  const qa=(l,v)=>v?`<p class="entry-q">${l}</p><p class="entry-a">${esc(v)}</p>`:"";
+  return `<div class="stack-lg"><div class="stack"><p class="eyebrow">Journal</p><h2>What God has been teaching you</h2></div>
+    <input type="search" id="jq" placeholder="Search your reflections" value="${esc(jFilter.q)}">
+    <div class="chips"><button class="chip" data-jt="" aria-pressed="${!jFilter.tag}">All</button>${TOPICS.filter(t=>used.has(t)).map(t=>`<button class="chip" data-jt="${t}" aria-pressed="${jFilter.tag===t}">${t}</button>`).join("")}</div>
+    ${list.length?`<div class="list">${list.map(e=>`<article class="item"><div class="spread"><b>${esc(e.ref)}</b><span class="small muted">${e.completedOn?fmtDate(e.completedOn):"In progress"}</span></div>
+      ${(e.tags||[]).length?`<div class="chips">${e.tags.map(t=>`<span class="pill">${t}</span>`).join("")}</div>`:""}
+      ${qa("Stood out",e.stands)}${qa("About God",e.god)}${qa("Asking me to change",e.change)}${qa("Key verse",e.keyVerse)}${qa("Prayer",e.pray)}
+      ${e.action?`<p class="entry-q">Action</p><div class="spread"><p class="entry-a" style="flex:1;min-width:0">${esc(e.action)}</p>${e.followUp?`<span class="pill ${fu[e.followUp][0]}">${fu[e.followUp][1]}</span>`:""}</div>`:""}
+    </article>`).join("")}</div>`
+    :`<div class="quiet"><p><b>${jFilter.tag||jFilter.q?"Nothing matches yet.":"Your reflections will collect here."}</b></p><p class="small muted">Each night's answers, key verse and action are saved to this journal so you can look back on what you've learned.</p></div>`}
+  </div>`;
+}
+function bindJournal(){
+  document.querySelectorAll("[data-jt]").forEach(b=>b.onclick=()=>{ jFilter.tag=b.dataset.jt; render(); });
+  const q=$("#jq"); q.oninput=()=>{ jFilter.q=q.value; debounce("jq",()=>{ render(); const n=$("#jq"); n.focus(); n.setSelectionRange(n.value.length,n.value.length); },350); };
+}
+
+/* ---------- memory verses ---------- */
+const INTERVALS=[1,2,4,7,14,30];
+let vState={reveal:false,hint:false,adding:false};
+function dueVerses(){ const t=today(); return Object.values(S.verses).filter(v=>(v.next||t)<=t).sort((a,b)=>(a.next||"").localeCompare(b.next||"")); }
+function firstLetters(s){ return s.replace(/([A-Za-z])[A-Za-z'’]*/g,"$1"); }
+function viewVerses(){
+  const due=dueVerses(), v=due[0], all=Object.values(S.verses).sort((a,b)=>(a.next||"").localeCompare(b.next||""));
+  const levels=["New","Learning","Learning","Familiar","Familiar","Known","Known"];
+  return `<div class="stack-lg"><div class="spread"><div class="stack" style="gap:4px"><p class="eyebrow">Memory verses</p><h2>Hide it in your heart</h2></div><button class="sm" id="addV">Add verse</button></div>
+    <form id="vForm" class="card stack" ${vState.adding?"":"hidden"}>
+      <div class="field"><label for="vRef">Reference</label><input id="vRef" type="text" required placeholder="e.g. Joshua 1:9"></div>
+      <div class="field"><label for="vText">Verse text</label><textarea id="vText" required placeholder="Copy it from your NIV Bible"></textarea></div>
+      <div class="row"><button class="primary sm" type="submit">Save verse</button><button class="sm" type="button" id="vCancel">Cancel</button></div></form>
+    ${v?`<section class="hero stack"><div class="spread"><p class="eyebrow">Review · ${due.length} due today</p><span class="pill">${levels[v.box||0]}</span></div>
+      <h2>${esc(v.ref)}</h2>
+      <p class="verse-text ${vState.reveal||vState.hint?"":"hidden-text"}">${esc(vState.reveal?v.text:vState.hint?firstLetters(v.text):v.text)}</p>
+      ${vState.reveal?`<p class="small muted">Did you say it correctly from memory?</p><div class="row"><button class="primary" data-grade="got">I got it</button><button data-grade="miss">I missed some</button></div>`
+      :`<p class="small muted">Say it out loud from memory, then check yourself.</p><div class="row"><button class="primary" id="reveal">Show the verse</button>${vState.hint?"":`<button id="hint">First-letter hint</button>`}</div>`}</section>`
+    :all.length?`<div class="banner good"><b>All caught up.</b> Your next review is ${fmtDate(all[0].next)}.</div>`:""}
+    ${all.length?`<div class="list">${all.map(x=>`<div class="item"><div class="spread"><b>${esc(x.ref)}</b><span class="small muted">${(x.next||today())<=today()?"Due now":"Next "+fmtDate(x.next)}</span></div><p class="small muted">${esc(x.text.slice(0,110))}${x.text.length>110?"…":""}</p><div class="row"><button class="ghost sm" data-delv="${x.id}">Remove</button></div></div>`).join("")}</div>`
+    :`<div class="quiet"><p><b>Start with one verse.</b></p><p class="small muted">Add a verse that struck you tonight. Review it here: each time you get it right, it comes back after a longer gap (1, 2, 4, 7, 14, then 30 days).</p></div>`}
+  </div>`;
+}
+function bindVerses(){
+  $("#addV").onclick=()=>{ vState.adding=true; render(); $("#vRef").focus(); };
+  $("#vCancel").onclick=()=>{ vState.adding=false; render(); };
+  $("#vForm").onsubmit=async e=>{ e.preventDefault(); const ref=$("#vRef").value.trim(), text=$("#vText").value.trim(); if(!ref||!text) return;
+    const id=uid8(); S.verses[id]={id,ref,text,box:0,next:today(),added:today()}; vState.adding=false; await putItem("verses",id); publishProgress(); toast("Verse added"); render(); };
+  const rv=$("#reveal"); if(rv) rv.onclick=()=>{ vState.reveal=true; render(); };
+  const hn=$("#hint"); if(hn) hn.onclick=()=>{ vState.hint=true; render(); };
+  document.querySelectorAll("[data-grade]").forEach(b=>b.onclick=async()=>{ const v=dueVerses()[0]; if(!v) return;
+    if(b.dataset.grade==="got"){ v.box=Math.min((v.box||0)+1,INTERVALS.length); v.next=addDays(today(),INTERVALS[v.box-1]); } else { v.box=0; v.next=addDays(today(),1); }
+    vState={reveal:false,hint:false,adding:false}; await putItem("verses",v.id); render(); });
+  document.querySelectorAll("[data-delv]").forEach(b=>b.onclick=async()=>{ const id=b.dataset.delv; if(b.dataset.armed){ delete S.verses[id]; await putItem("verses",id); publishProgress(); render(); } else { b.dataset.armed="1"; b.textContent="Tap again to remove"; } });
+}
+
+/* ---------- prayer ---------- */
+let pView={tab:"active",adding:false,updating:null,answering:null};
+function viewPrayer(){
+  const all=Object.values(S.prayers), list=all.filter(x=>pView.tab==="active"?!x.answered:x.answered).sort((a,b)=>(b.answeredOn||b.addedOn).localeCompare(a.answeredOn||a.addedOn));
+  return `<div class="stack-lg"><div class="spread"><div class="stack" style="gap:4px"><p class="eyebrow">Prayer</p><h2>Prayer list</h2></div><button class="sm" id="addP">Add request</button></div>
+    <form id="pForm" class="card stack" ${pView.adding?"":"hidden"}>
+      <div class="field"><label for="pTitle">Prayer request</label><input id="pTitle" type="text" required maxlength="140" placeholder="Who or what are you praying for?"></div>
+      <div class="field"><label for="pDet">Details <span class="hint">(optional)</span></label><textarea id="pDet"></textarea></div>
+      <div class="row"><button class="primary sm" type="submit">Save request</button><button class="sm" type="button" id="pCancel">Cancel</button></div></form>
+    <div class="chips"><button class="chip" data-pt="active" aria-pressed="${pView.tab==="active"}">Praying (${all.filter(x=>!x.answered).length})</button><button class="chip" data-pt="answered" aria-pressed="${pView.tab==="answered"}">Answered (${all.filter(x=>x.answered).length})</button></div>
+    ${list.length?`<div class="list">${list.map(x=>`<article class="item">
+      <div class="spread"><b style="flex:1;min-width:0">${esc(x.title)}</b>${x.answered?'<span class="pill good">Answered</span>':`<span class="small muted">Since ${fmtDate(x.addedOn)}</span>`}</div>
+      ${x.details&&x.details!==x.title?`<p class="entry-a small">${esc(x.details)}</p>`:""}
+      ${x.ref?`<p class="small muted">From ${esc(x.ref)}</p>`:""}
+      ${(x.updates||[]).map(u=>`<p class="small"><span class="muted">${fmtDate(u.on)}:</span> ${esc(u.text)}</p>`).join("")}
+      ${x.answered?`<p class="small"><span class="muted">Answered ${fmtDate(x.answeredOn)}:</span> ${esc(x.answerNote||"")}</p>`:""}
+      ${pView.updating===x.id?`<div class="row"><input type="text" id="upd" placeholder="What's changed?" style="flex:1;min-width:160px"><button class="sm primary" data-saveupd="${x.id}">Save</button></div>`:""}
+      ${pView.answering===x.id?`<div class="row"><input type="text" id="ans" placeholder="How did God answer?" style="flex:1;min-width:160px"><button class="sm primary" data-saveans="${x.id}">Mark answered</button></div>`:""}
+      ${!x.answered&&pView.updating!==x.id&&pView.answering!==x.id?`<div class="row"><button class="ghost sm" data-upd="${x.id}">Add update</button><button class="ghost sm" data-ans="${x.id}">Answered</button></div>`:""}
+    </article>`).join("")}</div>`
+    :`<div class="quiet"><p><b>${pView.tab==="active"?"No requests yet.":"No answered prayers yet."}</b></p><p class="small muted">${pView.tab==="active"?"Add what you're praying for, or tap \"Add to prayer list\" during tonight's study. Record updates as things change.":"When God answers a prayer, mark it answered and write down how. Looking back on these builds faith."}</p></div>`}
+  </div>`;
+}
+function bindPrayer(){
+  $("#addP").onclick=()=>{ pView.adding=true; render(); $("#pTitle").focus(); };
+  $("#pCancel").onclick=()=>{ pView.adding=false; render(); };
+  $("#pForm").onsubmit=async e=>{ e.preventDefault(); const title=$("#pTitle").value.trim(); if(!title) return; const id=uid8();
+    S.prayers[id]={id,title,details:$("#pDet").value.trim(),addedOn:today(),updates:[],answered:false}; pView.adding=false; pView.tab="active"; await putItem("prayers",id); render(); };
+  document.querySelectorAll("[data-pt]").forEach(b=>b.onclick=()=>{ pView.tab=b.dataset.pt; render(); });
+  document.querySelectorAll("[data-upd]").forEach(b=>b.onclick=()=>{ pView.updating=b.dataset.upd; pView.answering=null; render(); $("#upd").focus(); });
+  document.querySelectorAll("[data-ans]").forEach(b=>b.onclick=()=>{ pView.answering=b.dataset.ans; pView.updating=null; render(); $("#ans").focus(); });
+  document.querySelectorAll("[data-saveupd]").forEach(b=>b.onclick=async()=>{ const x=S.prayers[b.dataset.saveupd], t=$("#upd").value.trim(); if(t){ x.updates=[...(x.updates||[]),{on:today(),text:t}]; await putItem("prayers",x.id); } pView.updating=null; render(); });
+  document.querySelectorAll("[data-saveans]").forEach(b=>b.onclick=async()=>{ const x=S.prayers[b.dataset.saveans]; x.answered=true; x.answeredOn=today(); x.answerNote=$("#ans").value.trim(); pView.answering=null; await putItem("prayers",x.id); toast("Praise God. Moved to answered."); render(); });
+}
+boot();
+</script>
+</body>
+</html>
